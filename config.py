@@ -17,7 +17,8 @@ class Config:
     # Logging configuration
     LOG_DIR = BASE_DIR / "logs"
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-    LOG_MAX_BYTES = int(os.getenv('LOG_MAX_BYTES', '10485760'))  # 10MB
+    # 10MB in bytes
+    LOG_MAX_BYTES = int(os.getenv('LOG_MAX_BYTES', '10485760'))
     LOG_BACKUP_COUNT = int(os.getenv('LOG_BACKUP_COUNT', '5'))
     
     # Processing settings
@@ -74,6 +75,20 @@ class Config:
     EMBEDDING_VERIFY_SAMPLE_SIZE = int(os.getenv('EMBEDDING_VERIFY_SAMPLE_SIZE', '5'))
     EMBEDDING_SIMILARITY_THRESHOLD = float(os.getenv('EMBEDDING_SIMILARITY_THRESHOLD', '0.9999'))
     
+    # Cosmos DB settings
+    COSMOS_ENDPOINT = os.getenv('COSMOS_ENDPOINT')
+    COSMOS_KEY = os.getenv('COSMOS_KEY')
+    COSMOS_DATABASE = os.getenv('COSMOS_DATABASE', 'motobot-db')
+    AZURE_STORAGE_CONNECTION_STRING = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+    COSMOS_CONTAINERS = os.getenv('COSMOS_CONTAINERS', 'companies,pdf_families,documents,document_chunks,document_images,document_summaries,rag_queries').split(',')
+    
+    # Blob container settings
+    # AZURE_BLOB_ACCOUNT_NAME = os.getenv('AZURE_BLOB_ACCOUNT_NAME')
+    # AZURE_BLOB_KEY = os.getenv('AZURE_BLOB_KEY')
+    # AZURE_BLOB_CONTAINER = os.getenv('AZURE_BLOB_CONTAINER', 'motobot-documents')
+    # AZURE_BLOB_CONNECTION_STRING = os.getenv('AZURE_BLOB_CONNECTION_STRING', '')
+
+
     @classmethod
     def create_directories(cls) -> None:
         """Create necessary directories if they don't exist."""
@@ -134,7 +149,11 @@ class Config:
             "embedding_max_retries": cls.EMBEDDING_MAX_RETRIES,
             "embedding_retry_delay": cls.EMBEDDING_RETRY_DELAY,
             "embedding_verify_sample_size": cls.EMBEDDING_VERIFY_SAMPLE_SIZE,
-            "embedding_similarity_threshold": cls.EMBEDDING_SIMILARITY_THRESHOLD
+            "embedding_similarity_threshold": cls.EMBEDDING_SIMILARITY_THRESHOLD,
+            "cosmos_endpoint": cls.COSMOS_ENDPOINT,
+            "cosmos_key": cls.COSMOS_KEY,
+            "cosmos_database": cls.COSMOS_DATABASE,
+            "cosmos_containers": cls.COSMOS_CONTAINERS
         }
 
     @classmethod
@@ -234,3 +253,24 @@ class Config:
             issues.append(f"Embedding model loading failed: {str(e)}")
         
         return issues 
+
+    @classmethod
+    def get_cosmos_config(cls) -> Dict[str, str]:
+        """Get Cosmos DB configuration as a dictionary."""
+        return {
+            'endpoint': cls.COSMOS_ENDPOINT,
+            'key': cls.COSMOS_KEY,
+            'database': cls.COSMOS_DATABASE,
+            'containers': cls.COSMOS_CONTAINERS
+        } 
+    
+    # @classmethod
+    # def get_blob_config(cls) -> Dict[str, str]:
+    #     """Get Azure Blob Storage configuration as a dictionary."""
+    #     if not cls.AZURE_BLOB_CONNECTION_STRING:
+    #         raise ValueError("Azure Blob Storage connection string must be set in environment variables")
+            
+    #     return {
+    #         'connection_string': cls.AZURE_BLOB_CONNECTION_STRING,
+    #         'container': cls.AZURE_BLOB_CONTAINER
+    #     }
