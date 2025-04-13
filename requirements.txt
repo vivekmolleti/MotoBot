@@ -14,3 +14,7 @@ flake8>=6.0.0
 isort>=5.12.0
 mypy>=1.0.0
 # Add any additional dependencies for NLP, image processing, etc. 
+
+# New dependencies
+sentence-transformers>=2.2.2
+psycopg2-binary>=2.9.6 
