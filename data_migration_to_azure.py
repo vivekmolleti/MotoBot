@@ -136,7 +136,7 @@ class DataMigrator:
         self.pg_cursor.execute("""
             SELECT document_id, family_id, document_name, original_filename, 
                    file_size, file_type, upload_date, last_accessed, 
-                   content_hash, metadata, created_at, updated_at
+                   metadata, created_at, updated_at
             FROM Documents
         """)
         
@@ -154,10 +154,9 @@ class DataMigrator:
                 'file_type': doc[5],
                 'upload_date': doc[6].isoformat() if doc[6] else None,
                 'last_accessed': doc[7].isoformat() if doc[7] else None,
-                'content_hash': doc[8],
-                'metadata': json.loads(doc[9]) if doc[9] else None,
-                'created_at': doc[10].isoformat() if doc[10] else None,
-                'updated_at': doc[11].isoformat() if doc[11] else None
+                'metadata': doc[8] if doc[8] else None,
+                'created_at': doc[9].isoformat() if doc[9] else None,
+                'updated_at': doc[10].isoformat() if doc[10] else None
             }
             
             try:
@@ -188,9 +187,9 @@ class DataMigrator:
                 'document_id': str(chunk[1]),
                 'chunk_text': chunk[2],
                 'chunk_index': chunk[3],
-                'position_data': json.loads(chunk[5]) if chunk[5] else None,
-                'created_at': chunk[7].isoformat() if chunk[7] else None,
-                'updated_at': chunk[8].isoformat() if chunk[8] else None,
+                'position_data': chunk[4] if chunk[4] else None,
+                'created_at': chunk[5].isoformat() if chunk[5] else None,
+                'updated_at': chunk[6].isoformat() if chunk[6] else None,
             }
             container.upsert_item(item)
         
@@ -238,13 +237,13 @@ class DataMigrator:
             item = {
                 'id': str(query[0]),
                 'query_id': str(query[0]),
-                'user_query': query[2],
-                'processed_query': query[3],
-                'response': query[4],
-                'chunks_used': json.loads(query[5]) if query[5] else None,  
-                'images_used': json.loads(query[6]) if query[6] else None,
-                'feedback_score': query[7],
-                'query_time': query[8].isoformat() if query[8] else None,
+                'user_query': query[1],
+                'processed_query': query[2],
+                'response': query[3],
+                'chunks_used': query[4] if query[4] else None,  
+                'images_used': query[5] if query[5] else None,
+                'feedback_score': query[6],
+                'query_time': query[7].isoformat() if query[7] else None,
             }
             container.upsert_item(item)
         
@@ -254,15 +253,15 @@ class DataMigrator:
         """Migrate all tables."""
         try:
             logger.info("Starting migration to Cosmos DB")
-            self.create_cosmos_containers()
+            # self.create_cosmos_containers()
             
             # Migrate in order to maintain referential integrity
-            self.migrate_companies()
-            self.migrate_pdf_families()
+            # self.migrate_companies()
+            # self.migrate_pdf_families()
             self.migrate_documents()
             self.migrate_document_chunks()
             self.migrate_document_images()
-            self.migrate_rag_queries()
+            #self.migrate_rag_queries()
             
             logger.info("Migration completed successfully")
         except Exception as e:
