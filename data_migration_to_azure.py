@@ -200,7 +200,7 @@ class DataMigrator:
         logger.info("Migrating DocumentImages table")
         self.pg_cursor.execute("""
             SELECT image_id, document_id, page_number, image_path,
-                   image_data, created_at
+                   position_data, created_at
             FROM DocumentImages
         """)
         
@@ -214,7 +214,7 @@ class DataMigrator:
                 'document_id': str(image[1]),
                 'page_number': image[2],
                 'image_path': image[3],
-                'image_data': image[4].hex() if image[4] else None,
+                'image_data': image[4] if image[4] else None,
                 'created_at': image[5].isoformat() if image[5] else None
             }
             container.upsert_item(item)
@@ -258,8 +258,8 @@ class DataMigrator:
             # Migrate in order to maintain referential integrity
             # self.migrate_companies()
             # self.migrate_pdf_families()
-            self.migrate_documents()
-            self.migrate_document_chunks()
+            # self.migrate_documents()
+            # self.migrate_document_chunks()
             self.migrate_document_images()
             #self.migrate_rag_queries()
             
