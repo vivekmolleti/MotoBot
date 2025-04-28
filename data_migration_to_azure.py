@@ -6,6 +6,14 @@ from database_schema.cosmos_manager import CosmosManager
 from pathlib import Path
 import json
 from azure.storage.blob import BlobServiceClient
+import os
+import fitz  # PyMuPDF
+from PIL import Image
+import io
+from sentence_transformers import SentenceTransformer
+import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 # Set up logging
 log_dir = Path(Config.LOG_DIR)
@@ -26,10 +34,41 @@ logger = logging.getLogger(__name__)
 class DataMigrator:
     def __init__(self):
         self.cosmos = CosmosManager()
-        self.pg_conn = psycopg2.connect(**Config.get_db_config())
-        self.pg_conn.autocommit = True
-        self.pg_cursor = self.pg_conn.cursor()
+        #self.pg_conn = psycopg2.connect(**Config.get_db_config())
+        #self.pg_conn.autocommit = True
+        #self.pg_cursor = self.pg_conn.cursor()
+        #self.pdf_dir = Path(Config.PDF_DIR)
+        self.blob_service_client = BlobServiceClient.from_connection_string(Config.AZURE_BLOB_CONNECTION_STRING)
+        self.container_client = self.blob_service_client.get_container_client(Config.AZURE_BLOB_CONTAINER)
+        #self.images_dir = Path(Config.IMAGE_DIR)
+        #self.images_dir.mkdir(parents=True, exist_ok=True)
         
+        # Initialize the embedding model with a smaller, faster model
+        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.batch_size = 32  # Smaller batch size for CPU
+        self.max_workers = 2  # Fewer workers to prevent CPU overload
+        
+        # Checkpoint file
+        self.checkpoint_file = Path("embedding_checkpoint.json")
+        self.processed_chunks = self.load_checkpoint()
+    
+    def load_checkpoint(self) -> set:
+        """Load processed chunk IDs from checkpoint file."""
+        if self.checkpoint_file.exists():
+            try:
+                with open(self.checkpoint_file, 'r') as f:
+                    return set(json.load(f))
+            except Exception as e:
+                logger.error(f"Error loading checkpoint: {str(e)}")
+        return set()
+    
+    def save_checkpoint(self):
+        """Save processed chunk IDs to checkpoint file."""
+        try:
+            with open(self.checkpoint_file, 'w') as f:
+                json.dump(list(self.processed_chunks), f)
+        except Exception as e:
+            logger.error(f"Error saving checkpoint: {str(e)}")
     
     def create_cosmos_containers(self):
         """Create all necessary containers in Cosmos DB."""
@@ -53,6 +92,7 @@ class DataMigrator:
                         "path": "/embedding",
                         "dataType": "float32",
                         "dimensions": Config.EMBEDDING_DIMENSIONS,
+
                         "distanceFunction": "cosine"
                     }]
                 }
@@ -249,19 +289,223 @@ class DataMigrator:
         
         logger.info(f"Migrated {len(queries)} RAG queries")
     
+    def get_local_pdfs(self) -> Dict[str, Path]:
+        """Get all PDF files from the local directory."""
+        pdf_files = {}
+        for pdf_file in self.pdf_dir.glob("**/*.pdf"):
+            pdf_files[pdf_file.name] = pdf_file
+        return pdf_files
+    
+    def update_document_urls(self):
+        """Update document URLs in Cosmos DB based on local PDFs."""
+        logger.info("Updating document URLs in Cosmos DB")
+        
+        # Get all local PDFs
+        local_pdfs = self.get_local_pdfs()
+        logger.info(f"Found {len(local_pdfs)} local PDF files")
+        
+        # Get documents container
+        container = self.cosmos.database.get_container_client('documents')
+        
+        # Query all documents
+        query = "SELECT * FROM c"
+        items = list(container.query_items(query=query, enable_cross_partition_query=True))
+        
+        updated_count = 0
+        for item in items:
+            original_filename = item.get('original_filename')
+            if not original_filename:
+                continue
+                
+            # Check if we have this PDF locally
+            if original_filename in local_pdfs:
+                try:
+                    # Get blob URL for the PDF
+                    blob_name = f"documents/{original_filename}"
+                    blob_client = self.container_client.get_blob_client(blob_name)
+                    
+                    if blob_client.exists():
+                        # Update document with blob URL
+                        item['blob_url'] = blob_client.url
+                        container.upsert_item(item)
+                        updated_count += 1
+                        logger.info(f"Updated URL for document {item['document_id']}: {blob_client.url}")
+                    else:
+                        logger.warning(f"Blob not found for {original_filename}")
+                except Exception as e:
+                    logger.error(f"Error updating document {item['document_id']}: {str(e)}")
+                    continue
+        
+        logger.info(f"Updated {updated_count} document URLs")
+    
+    def extract_image_from_pdf(self, pdf_path: Path, page_number: int, image_data: dict) -> Image.Image:
+        """Extract image from PDF at specified coordinates."""
+        try:
+            return 
+        except Exception as e:
+            logger.error(f"Error extracting image from {pdf_path} page {page_number}: {str(e)}")
+            return None
+    
+    def upload_image_to_blob(self, image: Image.Image, blob_name: str) -> str:
+        """Upload image to blob storage and return the URL."""
+        try:
+            # Convert image to bytes
+            img_byte_arr = io.BytesIO()
+            image.save(img_byte_arr, format='PNG')
+            img_byte_arr = img_byte_arr.getvalue()
+            
+            # Upload to blob storage
+            blob_client = self.container_client.get_blob_client(blob_name)
+            blob_client.upload_blob(img_byte_arr, overwrite=True)
+            
+            return blob_client.url
+        except Exception as e:
+            logger.error(f"Error uploading image {blob_name}: {str(e)}")
+            return None
+    
+    def update_document_images(self):
+        """Update document images in Cosmos DB with blob URLs."""
+        logger.info("Updating document images in Cosmos DB")
+        
+        # Get all local PDFs
+        local_pdfs = self.get_local_pdfs()
+        logger.info(f"Found {len(local_pdfs)} local PDF files")
+        
+        # Get images container
+        container = self.cosmos.database.get_container_client('document_images')
+        
+        # Query all images
+        query = "SELECT * FROM c"
+        items = list(container.query_items(query=query, enable_cross_partition_query=True))
+        
+        updated_count = 0
+        for item in items:
+            try:
+                # Get the document to find the PDF
+                doc_container = self.cosmos.database.get_container_client('documents')
+                doc = doc_container.read_item(item['document_id'], partition_key=item['document_id'])
+                
+                if not doc or 'original_filename' not in doc:
+                    logger.warning(f"Document not found for image {item['image_id']}")
+                    continue
+                
+                pdf_name = doc['original_filename']
+                if pdf_name not in local_pdfs:
+                    logger.warning(f"PDF not found locally for image {item['image_id']}: {pdf_name}")
+                    continue
+                
+                # Extract image from PDF
+                image = self.extract_image_from_pdf(
+                    local_pdfs[pdf_name],
+                    item['page_number'],
+                    item['image_data']
+                )
+                
+                if not image:
+                    continue
+                
+                # Generate blob name
+                blob_name = f"images/{item['image_id']}.png"
+                
+                # Upload to blob storage
+                blob_url = self.upload_image_to_blob(image, blob_name)
+                
+                if blob_url:
+                    # Update image record
+                    item['image_path'] = blob_url
+                    container.upsert_item(item)
+                    updated_count += 1
+                    logger.info(f"Updated image {item['image_id']} with URL: {blob_url}")
+                
+            except Exception as e:
+                logger.error(f"Error processing image {item['image_id']}: {str(e)}")
+                continue
+        
+        logger.info(f"Updated {updated_count} document images")
+    
+    def update_chunk_embeddings(self):
+        """Update document chunks with vector embeddings using optimized batch processing."""
+        logger.info("Generating and storing vector embeddings for document chunks")
+        
+        # Get chunks container
+        container = self.cosmos.database.get_container_client('document_chunks')
+        
+        # Query chunks without embeddings and not yet processed
+        query = "SELECT * FROM document_chunks as c WHERE NOT IS_DEFINED(c.embedding)"
+        items = list(container.query_items(query=query, enable_cross_partition_query=True))
+        
+        # Filter out already processed chunks
+        items = [item for item in items if item['chunk_id'] not in self.processed_chunks]
+        
+        logger.info(f"Found {len(items)} chunks to process")
+        
+        # Split items into smaller batches
+        batches = [items[i:i + self.batch_size] for i in range(0, len(items), self.batch_size)]
+        total_updated = 0
+        
+        try:
+            # Process batches sequentially to prevent CPU overload
+            for i, batch in enumerate(batches):
+                try:
+                    # Extract texts from the batch
+                    texts = [item['chunk_text'] for item in batch]
+                    
+                    # Generate embeddings for the batch
+                    embeddings = self.embedding_model.encode(
+                        texts,
+                        batch_size=self.batch_size,
+                        show_progress_bar=True,
+                        convert_to_numpy=True
+                    )
+                    
+                    if embeddings is not None:
+                        # Update each chunk with its embeddings
+                        for item, embedding in zip(batch, embeddings):
+                            item['embedding'] = embedding.tolist()
+                            container.upsert_item(item)
+                            self.processed_chunks.add(item['chunk_id'])
+                            total_updated += 1
+                        
+                        # Save checkpoint after each successful batch
+                        self.save_checkpoint()
+                        
+                        logger.info(f"Processed batch {i+1}/{len(batches)} - Updated {len(batch)} chunks")
+                        logger.info(f"Total updated: {total_updated}")
+                    
+                except Exception as e:
+                    logger.error(f"Error processing batch {i+1}: {str(e)}")
+                    continue
+                
+                # Add a small delay to prevent CPU overheating
+                time.sleep(1)
+        
+        except Exception as e:
+            logger.error(f"Error in embedding generation: {str(e)}")
+        finally:
+            self.save_checkpoint()
+            logger.info(f"Completed processing. Total chunks updated: {total_updated}")
+    
     def migrate_all(self):
         """Migrate all tables."""
         try:
             logger.info("Starting migration to Cosmos DB")
-            # self.create_cosmos_containers()
             
             # Migrate in order to maintain referential integrity
             # self.migrate_companies()
             # self.migrate_pdf_families()
             # self.migrate_documents()
             # self.migrate_document_chunks()
-            self.migrate_document_images()
-            #self.migrate_rag_queries()
+            # self.migrate_document_images()
+            # self.migrate_rag_queries()
+            
+            # # Update document URLs after migration
+            # self.update_document_urls()
+            
+            # # Update document images
+            # self.update_document_images()
+            
+            # Generate and store embeddings
+            self.update_chunk_embeddings()
             
             logger.info("Migration completed successfully")
         except Exception as e:

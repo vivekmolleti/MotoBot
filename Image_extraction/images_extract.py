@@ -26,7 +26,7 @@ class ImageExtractor:
     def __init__(self):
         self.images_dir = Config.IMAGES_DIR
         self.min_area = 30000  # Minimum area for diagram detection
-        self.aspect_ratio_range = (0.5, 2.0)  # Acceptable aspect ratio range
+        self.aspect_ratio_range = (0.3, 2.0)  # Acceptable aspect ratio range
         self.padding = 15  # Padding around detected diagrams
         
     def _create_model_directory(self, model: str) -> Path:

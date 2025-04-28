@@ -7,88 +7,114 @@ import logging
 # Load environment variables
 load_dotenv()
 
+def get_env_int(key: str, default: int) -> int:
+    """Safely get integer from environment variable."""
+    value = os.getenv(key, str(default))
+    # Remove any comments or whitespace
+    value = value.split('#')[0].strip()
+    try:
+        return int(value)
+    except ValueError:
+        logging.warning(f"Invalid integer value for {key}: {value}, using default: {default}")
+        return default
+
+def get_env_str(key: str, default: str) -> str:
+    """Safely get string from environment variable."""
+    value = os.getenv(key, default)
+    # Remove any comments or whitespace
+    return value.split('#')[0].strip()
+
+def get_env_float(key: str, default: float) -> float:
+    """Safely get float from environment variable."""
+    value = os.getenv(key, str(default))
+    # Remove any comments or whitespace
+    value = value.split('#')[0].strip()
+    try:
+        return float(value)
+    except ValueError:
+        logging.warning(f"Invalid float value for {key}: {value}, using default: {default}")
+        return default
+
 class Config:
     """Configuration class for the application."""
     
     # Base paths
     BASE_DIR = Path(__file__).parent
-    LIB_PATH = os.getenv('LIB_PATH', '/path/to/your/library')
+    LIB_PATH = get_env_str('LIB_PATH', '/path/to/your/library')
     
     # Logging configuration
     LOG_DIR = BASE_DIR / "logs"
-    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-    # 10MB in bytes
-    LOG_MAX_BYTES = int(os.getenv('LOG_MAX_BYTES', '10485760'))
-    LOG_BACKUP_COUNT = int(os.getenv('LOG_BACKUP_COUNT', '5'))
+    LOG_LEVEL = get_env_str('LOG_LEVEL', 'INFO')
+    LOG_MAX_BYTES = get_env_int('LOG_MAX_BYTES', 10485760)
+    LOG_BACKUP_COUNT = get_env_int('LOG_BACKUP_COUNT', 5)
     
     # Processing settings
-    BATCH_SIZE = int(os.getenv('BATCH_SIZE', '32'))
-    MAX_WORKERS = int(os.getenv('MAX_WORKERS', '4'))
+    BATCH_SIZE = get_env_int('BATCH_SIZE', 32)
+    MAX_WORKERS = get_env_int('MAX_WORKERS', 4)
     
     # Output settings
-    OUTPUT_DIR = os.getenv('OUTPUT_DIR', 'output')
-    OUTPUT_FILE = os.getenv('OUTPUT_FILE', 'final_grouped_family.json')
+    OUTPUT_DIR = get_env_str('OUTPUT_DIR', 'output')
+    OUTPUT_FILE = get_env_str('OUTPUT_FILE', 'final_grouped_family.json')
     
     # Cache settings
-    CACHE_ENABLED = os.getenv('CACHE_ENABLED', 'true').lower() == 'true'
-    CACHE_DIR = os.getenv('CACHE_DIR', 'cache')
+    CACHE_ENABLED = get_env_str('CACHE_ENABLED', 'true').lower() == 'true'
+    CACHE_DIR = get_env_str('CACHE_DIR', 'cache')
     
     # PDF Processing settings
-    PDF_DIR = os.getenv('PDF_DIR', 'pdfs')
-    PDF_EXTENSIONS = os.getenv('PDF_EXTENSIONS', '.pdf').split(',')
-    MAX_PDF_SIZE = int(os.getenv('MAX_PDF_SIZE', '104857600'))  # 100MB
-    PDF_PROCESSING_TIMEOUT = int(os.getenv('PDF_PROCESSING_TIMEOUT', '300'))  # 5 minutes
+    PDF_DIR = get_env_str('PDF_DIR', 'pdfs')
+    PDF_EXTENSIONS = get_env_str('PDF_EXTENSIONS', '.pdf').split(',')
+    MAX_PDF_SIZE = get_env_int('MAX_PDF_SIZE', 104857600)
+    PDF_PROCESSING_TIMEOUT = get_env_int('PDF_PROCESSING_TIMEOUT', 300)
     
     # Image Processing settings
-    IMAGE_DIR = os.getenv('IMAGE_DIR', 'images')
-    IMAGE_EXTENSIONS = os.getenv('IMAGE_EXTENSIONS', '.png,.jpg,.jpeg').split(',')
-    MAX_IMAGE_SIZE = int(os.getenv('MAX_IMAGE_SIZE', '10485760'))  # 10MB
-    IMAGE_QUALITY = int(os.getenv('IMAGE_QUALITY', '85'))
+    IMAGE_DIR = get_env_str('IMAGE_DIR', 'images')
+    IMAGE_EXTENSIONS = get_env_str('IMAGE_EXTENSIONS', '.png,.jpg,.jpeg').split(',')
+    MAX_IMAGE_SIZE = get_env_int('MAX_IMAGE_SIZE', 10485760)
+    IMAGE_QUALITY = get_env_int('IMAGE_QUALITY', 85)
     
     # Statistics and Monitoring
-    STATS_DIR = os.getenv('STATS_DIR', 'stats')
-    CLEANING_STATS_DIR = os.getenv('CLEANING_STATS_DIR', 'stats/cleaning')
-    CHUNKING_STATS_DIR = os.getenv('CHUNKING_STATS_DIR', 'stats/chunking')
-    PDF_STATS_DIR = os.getenv('PDF_STATS_DIR', 'stats/pdf')
+    STATS_DIR = get_env_str('STATS_DIR', 'stats')
+    CLEANING_STATS_DIR = get_env_str('CLEANING_STATS_DIR', 'stats/cleaning')
+    CHUNKING_STATS_DIR = get_env_str('CHUNKING_STATS_DIR', 'stats/chunking')
+    PDF_STATS_DIR = get_env_str('PDF_STATS_DIR', 'stats/pdf')
     
     # Ducati-specific settings
-    DUCATI_FAMILIES = os.getenv('DUCATI_FAMILIES', 'DesertX,Diavel,Hypermotard,Monster,Multistrada,Off-Road,Panigale,Scrambler,Streetfighter,Supersport,Superbike,XDiavel').split(',')
-    NAME_CLEANUP_PATTERNS = os.getenv('NAME_CLEANUP_PATTERNS', 'OM,_,.pdf,-,EN,ED00,ED01,ED02,ED03,Rev01,Rev02').split(',')
+    DUCATI_FAMILIES = get_env_str('DUCATI_FAMILIES', 'DesertX,Diavel,Hypermotard,Monster,Multistrada,Off-Road,Panigale,Scrambler,Streetfighter,Supersport,Superbike,XDiavel').split(',')
+    NAME_CLEANUP_PATTERNS = get_env_str('NAME_CLEANUP_PATTERNS', 'OM,_,.pdf,-,EN,ED00,ED01,ED02,ED03,Rev01,Rev02').split(',')
     
     # Error handling
-    MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
-    RETRY_DELAY = int(os.getenv('RETRY_DELAY', '5'))  # seconds
+    MAX_RETRIES = get_env_int('MAX_RETRIES', 3)
+    RETRY_DELAY = get_env_int('RETRY_DELAY', 5)
     
     # Database settings
-    DB_HOST = os.getenv('DB_HOST', 'localhost')
-    DB_PORT = int(os.getenv('DB_PORT', '5432'))
-    DB_NAME = os.getenv('DB_NAME', 'motobot')
-    DB_USER = os.getenv('DB_USER', 'postgres')
-    DB_PASSWORD = os.getenv('DB_PASSWORD', 'Ironman#99')
+    DB_HOST = get_env_str('DB_HOST', 'localhost')
+    DB_PORT = get_env_int('DB_PORT', 5432)
+    DB_NAME = get_env_str('DB_NAME', 'motobot')
+    DB_USER = get_env_str('DB_USER', 'postgres')
+    DB_PASSWORD = get_env_str('DB_PASSWORD', 'Ironman#99')
     
     # Embedding settings
-    EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'all-mpnet-base-v2')
-    EMBEDDING_BATCH_SIZE = int(os.getenv('EMBEDDING_BATCH_SIZE', '500'))
-    EMBEDDING_DIMENSIONS = int(os.getenv('EMBEDDING_DIMENSIONS', '768'))
-    EMBEDDING_MAX_RETRIES = int(os.getenv('EMBEDDING_MAX_RETRIES', '3'))
-    EMBEDDING_RETRY_DELAY = int(os.getenv('EMBEDDING_RETRY_DELAY', '5'))
-    EMBEDDING_VERIFY_SAMPLE_SIZE = int(os.getenv('EMBEDDING_VERIFY_SAMPLE_SIZE', '5'))
-    EMBEDDING_SIMILARITY_THRESHOLD = float(os.getenv('EMBEDDING_SIMILARITY_THRESHOLD', '0.9999'))
+    EMBEDDING_MODEL = get_env_str('EMBEDDING_MODEL', 'all-mpnet-base-v2')
+    EMBEDDING_BATCH_SIZE = get_env_int('EMBEDDING_BATCH_SIZE', 500)
+    EMBEDDING_DIMENSIONS = get_env_int('EMBEDDING_DIMENSIONS', 768)
+    EMBEDDING_MAX_RETRIES = get_env_int('EMBEDDING_MAX_RETRIES', 3)
+    EMBEDDING_RETRY_DELAY = get_env_int('EMBEDDING_RETRY_DELAY', 5)
+    EMBEDDING_VERIFY_SAMPLE_SIZE = get_env_int('EMBEDDING_VERIFY_SAMPLE_SIZE', 5)
+    EMBEDDING_SIMILARITY_THRESHOLD = get_env_float('EMBEDDING_SIMILARITY_THRESHOLD', 0.9999)
     
     # Cosmos DB settings
-    COSMOS_ENDPOINT = os.getenv('COSMOS_ENDPOINT')
-    COSMOS_KEY = os.getenv('COSMOS_KEY')
-    COSMOS_DATABASE = os.getenv('COSMOS_DATABASE', 'motobot-db')
-    AZURE_STORAGE_CONNECTION_STRING = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
-    COSMOS_CONTAINERS = os.getenv('COSMOS_CONTAINERS', 'companies,pdf_families,documents,document_chunks,document_images,document_summaries,rag_queries').split(',')
+    COSMOS_ENDPOINT = get_env_str('COSMOS_ENDPOINT', 'https://motobot-db.documents.azure.com:443/')
+    COSMOS_KEY = get_env_str('COSMOS_KEY', '')
+    COSMOS_DATABASE = get_env_str('COSMOS_DATABASE', 'motobot-db')
+    COSMOS_CONTAINER = get_env_str('COSMOS_CONTAINER', 'motobot-container')
+    AZURE_STORAGE_CONNECTION_STRING = get_env_str('AZURE_STORAGE_CONNECTION_STRING', '')
     
     # Blob container settings
-    # AZURE_BLOB_ACCOUNT_NAME = os.getenv('AZURE_BLOB_ACCOUNT_NAME')
-    # AZURE_BLOB_KEY = os.getenv('AZURE_BLOB_KEY')
-    # AZURE_BLOB_CONTAINER = os.getenv('AZURE_BLOB_CONTAINER', 'motobot-documents')
-    # AZURE_BLOB_CONNECTION_STRING = os.getenv('AZURE_BLOB_CONNECTION_STRING', '')
-
-
+    AZURE_BLOB_ACCOUNT_NAME = get_env_str('AZURE_BLOB_ACCOUNT_NAME', '')
+    AZURE_BLOB_KEY = get_env_str('AZURE_BLOB_KEY', '')
+    AZURE_BLOB_CONTAINER = get_env_str('AZURE_BLOB_CONTAINER', 'motobotdatastore')
+    AZURE_BLOB_CONNECTION_STRING = get_env_str('AZURE_BLOB_CONNECTION_STRING', '')
+    
     @classmethod
     def create_directories(cls) -> None:
         """Create necessary directories if they don't exist."""
@@ -153,7 +179,12 @@ class Config:
             "cosmos_endpoint": cls.COSMOS_ENDPOINT,
             "cosmos_key": cls.COSMOS_KEY,
             "cosmos_database": cls.COSMOS_DATABASE,
-            "cosmos_containers": cls.COSMOS_CONTAINERS
+            "cosmos_container": cls.COSMOS_CONTAINER,
+            "azure_storage_connection_string": cls.AZURE_STORAGE_CONNECTION_STRING,
+            "azure_blob_account_name": cls.AZURE_BLOB_ACCOUNT_NAME,
+            "azure_blob_key": cls.AZURE_BLOB_KEY,
+            "azure_blob_container": cls.AZURE_BLOB_CONTAINER,
+            "azure_blob_connection_string": cls.AZURE_BLOB_CONNECTION_STRING
         }
 
     @classmethod
@@ -261,7 +292,7 @@ class Config:
             'endpoint': cls.COSMOS_ENDPOINT,
             'key': cls.COSMOS_KEY,
             'database': cls.COSMOS_DATABASE,
-            'containers': cls.COSMOS_CONTAINERS
+            'container': cls.COSMOS_CONTAINER
         } 
     
     # @classmethod
